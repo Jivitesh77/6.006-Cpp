@@ -1,0 +1,271 @@
+\documentclass{article}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{geometry}
+
+\geometry{a4paper, margin=1in}
+
+% Code listing style setup
+\definecolor{codegreen}{rgb}{0,0.6,0}
+\definecolor{codegray}{rgb}{0.5,0.5,0.5}
+\definecolor{codepurple}{rgb}{0.58,0,0.82}
+\definecolor{backcolour}{rgb}{0.95,0.95,0.92}
+
+\lstdefinestyle{cppstyle}{
+    backgroundcolor=\color{backcolour},   
+    commentstyle=\color{codegreen},
+    keywordstyle=\color{blue},
+    numberstyle=\tiny\color{codegray},
+    stringstyle=\color{codepurple},
+    basicstyle=\ttfamily\footnotesize,
+    breakatwhitespace=false,         
+    breaklines=true,                 
+    captionpos=b,                    
+    keepspaces=true,                 
+    numbers=left,                    
+    numbersep=5pt,                  
+    showspaces=false,                
+    showstringspaces=false,
+    showtabs=false,                  
+    tabsize=4,
+    language=C++
+}
+\lstset{style=cppstyle}
+
+\title{Data Structures in C++: \\ Linked Lists, Dynamic Arrays, and Amortized Analysis}
+\author{}
+\date{}
+
+\begin{document}
+
+\maketitle
+
+\section{Linked Lists}
+A linked list is a linear data structure where elements are not stored in contiguous memory locations. Instead, each element (called a "node") contains two parts: the data itself, and a pointer (or reference) to the next node in the sequence.
+
+In C++, you can handle linked lists in two ways: using the standard library, or building your own from scratch.
+
+\subsection{1. The Standard Library Way (\texttt{std::list} / \texttt{std::forward\_list})}
+
+Modern C++ provides two built-in containers for linked lists. You should default to these in production code unless you have a specific reason to build your own.
+
+\begin{itemize}
+    \item \texttt{std::list}: A doubly-linked list (nodes have pointers to both the next and previous nodes).
+    \item \texttt{std::forward\_list}: A singly-linked list (nodes only point to the next node, using less memory).
+\end{itemize}
+
+Here is how you use \texttt{std::list}:
+
+\begin{lstlisting}
+#include <iostream>
+#include <list>
+
+int main() {
+    // Create a doubly-linked list of integers
+    std::list<int> sequence = {10, 20, 30};
+
+    // Insert at the front (O(1) time complexity)
+    sequence.push_front(5);
+
+    // Insert at the back (O(1) time complexity)
+    sequence.push_back(40);
+
+    // Iterate through the sequence and print
+    for (int value : sequence) {
+        std::cout << value << " -> ";
+    }
+    std::cout << "END\n";
+
+    return 0;
+}
+\end{lstlisting}
+
+\subsection{2. Custom Implementation (Singly Linked List)}
+
+If you are studying data structures or need strict control over memory, you build a custom sequence using a \texttt{struct} or \texttt{class}.
+
+\subsubsection{The Node Structure}
+The foundation of a linked list is the \texttt{Node}.
+
+\begin{lstlisting}
+struct Node {
+    int data;       // The value stored in the node
+    Node* next;     // Pointer to the next node in the sequence
+
+    // Constructor to easily create new nodes
+    Node(int val) : data(val), next(nullptr) {}
+};
+\end{lstlisting}
+
+\subsubsection{The List Manager}
+To manage the sequence of nodes, you typically create a class that keeps track of the "head" (the very first node).
+
+\begin{lstlisting}
+#include <iostream>
+
+class LinkedList {
+private:
+    Node* head; // Points to the first node
+
+public:
+    LinkedList() : head(nullptr) {}
+
+    // Insert a new node at the front of the sequence
+    void insertFront(int val) {
+        Node* newNode = new Node(val);
+        newNode->next = head; // Point new node to current head
+        head = newNode;       // Make head point to the new node
+    }
+
+    // Print the entire sequence
+    void printSequence() {
+        Node* current = head;
+        while (current != nullptr) {
+            std::cout << current->data << " -> ";
+            current = current->next; // Move to the next node
+        }
+        std::cout << "nullptr\n";
+    }
+    
+    // Clean up memory (Destructor)
+    ~LinkedList() {
+        Node* current = head;
+        while (current != nullptr) {
+            Node* nextNode = current->next;
+            delete current;
+            current = nextNode;
+        }
+    }
+};
+
+int main() {
+    LinkedList list;
+    
+    list.insertFront(30);
+    list.insertFront(20);
+    list.insertFront(10);
+    
+    // Output: 10 -> 20 -> 30 -> nullptr
+    list.printSequence(); 
+    
+    return 0;
+}
+\end{lstlisting}
+
+\subsection{Why Implement Manually When We Have STL?}
+For 99\% of modern C++ programming, writing a custom linked list is reinventing the wheel. The STL’s \texttt{std::list}, \texttt{std::forward\_list}, and \texttt{std::deque} are rigorously tested, memory-safe, and highly optimized. 
+
+The only reasons the manual implementation still gets focus are:
+\begin{itemize}
+    \item \textbf{The Technical Interview Game:} Big Tech still obsesses over testing raw pointer manipulation. Detecting a cycle or reversing a list by physically rewiring pointers is a standard filter.
+    \item \textbf{Cache Locality Intuition:} Building one from scratch forces you to see exactly \textit{why} a \texttt{std::list} is usually slower to traverse than a \texttt{std::deque} or \texttt{std::vector} (nodes are scattered randomly in the heap, causing CPU cache misses).
+    \item \textbf{Kernel \& Embedded Systems:} In environments like OS kernel development or strict low-memory microcontrollers, the STL is often completely disabled or banned to prevent hidden allocation overhead.
+\end{itemize}
+
+When you are pushing through those 20-hour study stretches, tracking \texttt{head->next->next} pointers with a pen might feel tedious, but that manual tracking wires your brain to understand dynamic memory routing. It shows you exactly what the STL abstracts away.
+
+\section{Dynamic Array Sequence (\texttt{std::vector})}
+
+A dynamic array sequence is an array that automatically resizes itself when it runs out of space. In the C++ STL, this is \texttt{std::vector}.
+
+Unlike a linked list where nodes are scattered in memory, a vector guarantees \textbf{contiguous memory allocation}. Because the CPU fetches memory in chunks (cache lines), iterating through contiguous data results in massive performance gains (cache locality) compared to following pointers across the heap.
+
+\subsection{How it Actually Works Under the Hood}
+
+A \texttt{std::vector} secretly manages a standard, fixed-size array on the heap using three pointers (or integer tracking):
+\begin{enumerate}
+    \item \textbf{Size:} The number of elements currently stored.
+    \item \textbf{Capacity:} The total number of elements the current underlying array can hold.
+    \item \textbf{Data:} A pointer to the first element in memory.
+\end{enumerate}
+
+\subsubsection{The Reallocation Mechanism}
+When you push an element but \texttt{size == capacity}, the vector cannot simply append to the end because adjacent memory might be occupied. Instead, it executes a costly resizing operation:
+\begin{enumerate}
+    \item Allocates a brand new, larger array (usually 1.5x or 2x the old capacity).
+    \item Copies (or moves) all existing elements from the old array to the new one.
+    \item Deletes the old array.
+    \item Inserts the new element.
+\end{enumerate}
+
+Because the capacity grows exponentially, reallocations become increasingly rare, making insertion at the end take \textbf{Amortized $O(1)$} time.
+
+\begin{lstlisting}
+#include <iostream>
+#include <vector>
+
+int main() {
+    // Initializes with size 0, and a small default capacity
+    std::vector<int> nums; 
+
+    // It's a good habit to reserve space if you know the maximum size in advance.
+    // This prevents the costly reallocation process entirely.
+    nums.reserve(100); 
+
+    nums.push_back(10);
+    nums.push_back(20);
+    nums.push_back(30);
+
+    // O(1) random access, unlike linked lists
+    std::cout << "Second element: " << nums[1] << "\n"; 
+
+    // Removing from the end is O(1)
+    nums.pop_back();
+
+    std::cout << "Current Size: " << nums.size() << "\n";
+    std::cout << "Current Capacity: " << nums.capacity() << "\n";
+
+    return 0;
+}
+\end{lstlisting}
+
+\section{Amortized Analysis and Dynamic Array Deletion}
+
+Amortized analysis calculates the average time taken per operation over a sequence of operations, guaranteeing that even if a single operation is very expensive, the average cost remains small.
+
+For dynamic arrays, insertion and deletion rely on this mathematical guarantee to achieve $O(1)$ amortized time.
+
+\subsection{Proving Insertion is Amortized $O(1)$}
+
+When a dynamic array hits capacity $N$, inserting the next element requires allocating a $2N$ array and copying all $N$ elements. This specific insertion takes $O(N)$ time. However, because the array has doubled, the \textit{next} $N$ insertions will simply drop into empty slots, taking $O(1)$ time each.
+
+Using the \textbf{Aggregate Method}, we can sum the total work for inserting $N$ elements (assuming resizing happens at powers of 2):
+\begin{enumerate}
+    \item \textbf{Cost of standard insertions:} 1 unit of work per element = $N$.
+    \item \textbf{Cost of resizing copies:} We copy elements at sizes 1, 2, 4, 8... up to $N$. 
+\end{enumerate}
+
+The sum of this geometric series is: 
+\[ 1 + 2 + 4 + \dots + N = 2N - 1 \]
+
+\textbf{Total work for $N$ elements} = $N + (2N - 1) = 3N - 1$.
+
+\textbf{Amortized cost per element} = $\frac{3N - 1}{N} \approx 3$.
+
+Since the average cost is bounded by a constant (3 operations), insertion is \textbf{Amortized $O(1)$}.
+
+\subsection{Dynamic Array Deletion}
+
+Deleting elements introduces a new problem: when should the array shrink its capacity to save memory? 
+
+\subsubsection{The "Thrashing" Problem}
+A naive approach would be to shrink the capacity by half as soon as the array is exactly $50\%$ full. 
+Imagine an array with capacity $N=16$ and size $16$.
+\begin{enumerate}
+    \item \textbf{Push:} Array doubles to capacity 32, copies 16 elements (Cost: $O(N)$). Size = 17.
+    \item \textbf{Pop:} Size drops to 16.
+    \item \textbf{Pop:} Size drops to 15. The array is $< 50\%$ full. It shrinks capacity to 16, copying 15 elements (Cost: $O(N)$). 
+    \item \textbf{Push:} Size returns to 16.
+    \item \textbf{Push:} Array doubles to 32, copying 16 elements again (Cost: $O(N)$).
+\end{enumerate}
+
+If you alternate \texttt{push} and \texttt{pop} at this specific boundary, \textbf{every single operation takes $O(N)$ time}. This catastrophic performance failure is called thrashing.
+
+\subsubsection{The $1/4$ Shrink Rule}
+To maintain $O(1)$ amortized time for deletion, dynamic arrays use hysteresis (a buffer zone): \textbf{They only halve their capacity when they become $25\%$ ($1/4$) full.}
+
+By waiting until the array is $1/4$ full to shrink to $1/2$ capacity, the structure guarantees that after any resize (growing or shrinking), the array is exactly half full. This means it must undergo at least $N/2$ cheap $O(1)$ operations before it could possibly need to resize again, successfully spreading the $O(N)$ cost and restoring Amortized $O(1)$ performance.
+
+\end{document}
